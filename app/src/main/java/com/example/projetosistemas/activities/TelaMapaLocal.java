@@ -37,6 +37,8 @@ import java.util.List;
 
 public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallback {
 
+    private final float ZOOM_LEVEL = 16.0f;
+
     private GoogleMap mMap;
     private LatLngBounds ARARAQUARA;
     private Marker marker;
@@ -57,38 +59,24 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
         currentUser = mAuth.getCurrentUser();
         myDialog = new Dialog(this);
 
-        // Write a message to the database
         rootReference = FirebaseDatabase.getInstance().getReference();
 
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
     }
 
-
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        float zoomLevel = 16.0f;
 
-        ARARAQUARA = new LatLngBounds(
-                new LatLng(-21.816712, -48.228790), new LatLng(-21.711537, -48.120545));
+        ARARAQUARA = new LatLngBounds(new LatLng(-21.816712, -48.228790),
+                new LatLng(-21.711537, -48.120545));
 
         mMap.setLatLngBoundsForCameraTarget(ARARAQUARA);
 
         LatLng araraquara = new LatLng(-21.774528, -48.174242);
-        //mMap.addMarker(new MarkerOptions().position(araraquara).title("Marker in Araraquara"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(araraquara, zoomLevel));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(araraquara, ZOOM_LEVEL));
 
         getMarkers();
 
@@ -122,6 +110,7 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
                 marker.setCategoria(spinnerCategoria.getSelectedItem().toString());
                 marker.setDescricao(fieldDescricao.getText().toString());
                 rootReference.child("Markers").push().setValue(marker);
+                mMap.animateCamera(CameraUpdateFactory.newLatLng(marker.getLatLng()));
                 myDialog.dismiss();
                 getMarkers();
             }

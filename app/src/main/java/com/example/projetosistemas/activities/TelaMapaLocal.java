@@ -1,7 +1,6 @@
 package com.example.projetosistemas.activities;
 
 import android.app.Dialog;
-import android.provider.Settings;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -14,13 +13,15 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.projetosistemas.R;
-import com.example.projetosistemas.models.Marker;
+import com.example.projetosistemas.models.Marcador;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMap.OnMarkerClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -35,20 +36,23 @@ import java.util.HashMap;
 import java.util.List;
 
 
-public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallback {
+public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallback, OnMarkerClickListener {
 
     private final float ZOOM_LEVEL = 16.0f;
 
     private GoogleMap mMap;
     private LatLngBounds ARARAQUARA;
-    private Marker marker;
+    private Marcador dadosMarcador;
     private FirebaseAuth mAuth;
     private FirebaseUser currentUser;
     private DatabaseReference rootReference;
 
     private Dialog myDialog;
+    private Dialog dialogMarkerInfo;
 
     private String[] categorias = {"Buraco", "Entulho", "Enchente", "Acessibilidade", "Outros"};
+
+    private boolean control = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +62,7 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
         mAuth = FirebaseAuth.getInstance();
         currentUser = mAuth.getCurrentUser();
         myDialog = new Dialog(this);
+        dialogMarkerInfo = new Dialog(this);
 
         rootReference = FirebaseDatabase.getInstance().getReference();
 
@@ -69,6 +74,8 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mMap.clear();
+        getMarkers();
 
         ARARAQUARA = new LatLngBounds(new LatLng(-21.816712, -48.228790),
                 new LatLng(-21.711537, -48.120545));
@@ -78,7 +85,7 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
         LatLng araraquara = new LatLng(-21.774528, -48.174242);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(araraquara, ZOOM_LEVEL));
 
-        getMarkers();
+        mMap.setOnMarkerClickListener(this);
 
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
@@ -88,10 +95,68 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
         });
     }
 
+    @Override
+    public boolean onMarkerClick(final Marker marker) {
+        final Marcador informacao = (Marcador) marker.getTag();
+        final DatabaseReference childUpdate = rootReference.child("Markers").child(informacao.getId());
+        dialogMarkerInfo.setContentView(R.layout.custom_pop_up_marker);
+        mMap.animateCamera(CameraUpdateFactory.newLatLng(informacao.getLatLng()));
+
+        final TextView labelClose = (TextView) dialogMarkerInfo.findViewById(R.id.labelClose);
+        final Spinner spinnerCategoria = (Spinner) dialogMarkerInfo.findViewById(R.id.spinnerCategoriaMarker);
+        final EditText fieldDescricao = (EditText) dialogMarkerInfo.findViewById(R.id.fieldDescricaoMarker);
+        Button buttonExcluir = (Button) dialogMarkerInfo.findViewById(R.id.buttonExcluirMarker);
+        Button buttonSalvar = (Button) dialogMarkerInfo.findViewById(R.id.buttonSalvarMarker);
+
+        fillSpinner(spinnerCategoria);
+        spinnerCategoria.setSelection(getIndex(informacao.getCategoria()));
+        fieldDescricao.setText(informacao.getDescricao());
+        dialogMarkerInfo.show();
+
+        if(!currentUser.getUid().equals(informacao.getUserId())) {
+            spinnerCategoria.setEnabled(false);
+            fieldDescricao.setEnabled(false);
+            buttonExcluir.setEnabled(false);
+            buttonSalvar.setEnabled(false);
+        }
+
+        buttonSalvar.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                informacao.setCategoria(spinnerCategoria.getSelectedItem().toString());
+                informacao.setDescricao(fieldDescricao.getText().toString());
+                childUpdate.setValue(informacao);
+                Toast.makeText(getApplicationContext(),
+                        "Dados atualizados com sucesso !",
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        buttonExcluir.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                childUpdate.removeValue();
+                marker.remove();
+                Toast.makeText(getApplicationContext(),
+                        "Denúncia excluída com sucesso !",
+                        Toast.LENGTH_SHORT).show();
+                dialogMarkerInfo.dismiss();
+            }
+        });
+
+        labelClose.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialogMarkerInfo.dismiss();
+            }
+        });
+
+        return true;
+    }
+
     private void showPopUp(final LatLng latLng) {
         myDialog.setContentView(R.layout.custom_pop_up);
 
-        //final TextView labelClose = (TextView) myDialog.findViewById(R.id.labelClose);
         final Spinner spinnerCategoria = (Spinner) myDialog.findViewById(R.id.spinnerCategoria);
         final EditText fieldDescricao = (EditText) myDialog.findViewById(R.id.fieldDescricao);
         Button buttonCancelar = (Button) myDialog.findViewById(R.id.buttonCancelar);
@@ -103,27 +168,24 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
         buttonSalvar.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                marker = new Marker();
-                marker.setId("1");
-                marker.setUserId(currentUser.getUid());
-                marker.setLatLng(latLng);
-                marker.setCategoria(spinnerCategoria.getSelectedItem().toString());
-                marker.setDescricao(fieldDescricao.getText().toString());
-                rootReference.child("Markers").push().setValue(marker);
-                mMap.animateCamera(CameraUpdateFactory.newLatLng(marker.getLatLng()));
-                myDialog.dismiss();
-                getMarkers();
-            }
-        });
+                DatabaseReference path = rootReference.child("Markers").push();
+                String key = path.getKey();
 
-        /*
-        labelClose.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+                dadosMarcador = new Marcador();
+                dadosMarcador.setId(key);
+                dadosMarcador.setUserId(currentUser.getUid());
+                dadosMarcador.setLatLng(latLng);
+                dadosMarcador.setCategoria(spinnerCategoria.getSelectedItem().toString());
+                dadosMarcador.setDescricao(fieldDescricao.getText().toString());
+                path.setValue(dadosMarcador);
+                mMap.animateCamera(CameraUpdateFactory.newLatLng(dadosMarcador.getLatLng()));
+                placeMarker(dadosMarcador); //linha acrescentada
+                Toast.makeText(getApplicationContext(),
+                        "Denúncia cadastrada com sucesso !",
+                        Toast.LENGTH_SHORT).show();
                 myDialog.dismiss();
             }
         });
-        */
 
         buttonCancelar.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -133,14 +195,9 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
         });
     }
 
-    private void fillSpinner(Spinner spinner) {
-        ArrayAdapter<String> adapter = new ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categorias);
-        spinner.setAdapter(adapter);
-    }
-
     private void getMarkers() {
         rootReference.addValueEventListener(new ValueEventListener() {
-            List<Marker> marcadores = new ArrayList<>();
+            List<Marcador> marcadores = new ArrayList<>();
 
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
@@ -151,10 +208,13 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
                     List<Double> variaveis = new ArrayList<>(latLng.values());
                     String categoria = (String) infoSnapshot.child("categoria").getValue();
                     String descricao = (String) infoSnapshot.child("descricao").getValue();
-                    Marker marker = new Marker(id, userId, new LatLng(variaveis.get(0), variaveis.get(1)), categoria, descricao);
+                    Marcador marker = new Marcador(id, userId, new LatLng(variaveis.get(0), variaveis.get(1)), categoria, descricao);
                     marcadores.add(marker);
                 }
-                generateMarkers(marcadores);
+
+                if(control) {
+                    generateMarkers(marcadores);
+                }
             }
 
             @Override
@@ -166,29 +226,40 @@ public class TelaMapaLocal extends FragmentActivity implements OnMapReadyCallbac
         });
     }
 
-    private void generateMarkers(List<Marker> markers) {
+    private List<Marcador> generateMarkers(List<Marcador> markers) {
+        control = false;
+
         if(markers != null && !markers.isEmpty()) {
-            for(Marker marker : markers) {
-                // Creating a marker
-                MarkerOptions markerOptions = new MarkerOptions();
-
-                // Setting the position for the marker
-                markerOptions.position(marker.getLatLng());
-
-                // Setting the title for the marker.
-                // This will be displayed on taping the marker
-                markerOptions.title(marker.getLatLng().latitude + " : " + marker.getLatLng().longitude);
-
-                // Clears the previously touched position
-                //mMap.clear();
-
-                // Animating to the touched position
-                //mMap.animateCamera(CameraUpdateFactory.newLatLng(latLng));
-
-                // Placing a marker on the touched position
-                mMap.addMarker(markerOptions);
+            for(Marcador marker : markers) {
+                placeMarker(marker);
             }
         }
+        return markers;
     }
 
+    private void placeMarker(Marcador marker) {
+        MarkerOptions markerOptions = new MarkerOptions();
+        markerOptions.position(marker.getLatLng());
+        Marker dataMarker = mMap.addMarker(markerOptions);
+        dataMarker.setTag(marker);
+    }
+
+    private void fillSpinner(Spinner spinner) {
+        ArrayAdapter<String> adapter = new ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categorias);
+        spinner.setAdapter(adapter);
+    }
+
+    private int getIndex(String categoria) {
+        int pos = -1;
+
+        if(categoria != null) {
+            for(int index = 0; index < categorias.length; index++) {
+                if(categorias[index].equalsIgnoreCase(categoria)) {
+                    pos = index;
+                }
+            }
+
+        }
+        return pos;
+    }
 }

@@ -6,18 +6,18 @@ import android.widget.Toast;
 
 import com.google.android.gms.maps.model.LatLng;
 
-public class Marker {
+public class Marcador {
     private String id;
     private String userId;
     private LatLng latLng;
     private String categoria;
     private String descricao;
 
-    public Marker() {
+    public Marcador() {
 
     }
 
-    public Marker(String id, String userId, LatLng latLng, String categoria, String descricao) {
+    public Marcador(String id, String userId, LatLng latLng, String categoria, String descricao) {
         this.id = id;
         this.userId = userId;
         this.latLng = latLng;

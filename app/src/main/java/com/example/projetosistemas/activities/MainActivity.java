@@ -10,6 +10,7 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.projetosistemas.R;
@@ -26,6 +27,11 @@ public class MainActivity extends AppCompatActivity {
     private EditText fieldLogin;
     private EditText fieldPassword;
 
+    private Button buttonLogin;
+    private Button buttonCadastrar;
+
+    private TextView labelEsqueciSenha;
+
     private FirebaseAuth mAuth;
 
     @Override
@@ -35,13 +41,23 @@ public class MainActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
 
-        Button buttonLogin = (Button) findViewById(R.id.buttonLogin);
-        Button buttonCadastrar = (Button) findViewById(R.id.buttonCadastrar);
+        labelEsqueciSenha = (TextView) findViewById(R.id.labelEsqueciSenha);
+
+        buttonLogin = (Button) findViewById(R.id.buttonLogin);
+        buttonCadastrar = (Button) findViewById(R.id.buttonCadastrar);
 
         fieldLogin = (EditText) findViewById(R.id.fieldLogin);
         fieldPassword = (EditText) findViewById(R.id.fieldPassword);
 
         limparCampos();
+
+        labelEsqueciSenha.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(getApplicationContext(), TelaRecuperacaoSenha.class);
+                startActivity(intent);
+            }
+        });
 
         buttonLogin.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -127,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
                     break;
 
                 case "ERROR_USER_NOT_FOUND":
-                    Toast.makeText(getApplicationContext(), "E-mail digitado não encontrado. Tente novamente.",
+                    Toast.makeText(getApplicationContext(), "E-mail não encontrado. Tente novamente.",
                             Toast.LENGTH_SHORT).show();
                     break;
 
